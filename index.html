@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Last Light Over Earth: Soundtrack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEF1F6;--panel:#FFFFFF;--ink:#101828;--mute:#475467;--line:#C8D0DC;--accent:#B45309;--flame:#F59E0B;--wax:#D5DAE3;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#070B16;--panel:#0F1626;--ink:#E6EBF5;--mute:#9AA6BD;--line:#26314A;--accent:#FFB830;--flame:#FFB830;--wax:#2A3550}}
+:root[data-theme="dark"]{--bg:#070B16;--panel:#0F1626;--ink:#E6EBF5;--mute:#9AA6BD;--line:#26314A;--accent:#FFB830;--flame:#FFB830;--wax:#2A3550}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans Condensed','Arial Narrow',system-ui,sans-serif;line-height:1.45}
+main{max-width:760px;margin:0 auto;padding:24px 18px 48px}
+h1{font-size:26px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em}
+p.sub{margin:0 0 20px;color:var(--mute);font-size:15px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin:0 0 14px}
+h2{font:600 13px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 12px}
+.row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+button{font:600 15px 'IBM Plex Sans Condensed',system-ui,sans-serif;padding:10px 18px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;min-height:44px}
+button.go{background:var(--accent);border-color:var(--accent);color:#101828}
+button:focus-visible,input:focus-visible{outline:3px solid var(--flame);outline-offset:2px}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:28px}
+.candles{display:flex;gap:10px;align-items:flex-end;height:64px;margin:6px 0 10px}
+.c{width:16px;height:38px;border-radius:3px;background:var(--wax);position:relative;transition:background .4s}
+.c.on{background:var(--ink);opacity:.9}
+.c.on::before{content:"";position:absolute;left:50%;top:-14px;width:9px;height:14px;margin-left:-4.5px;border-radius:50% 50% 50% 50%/65% 65% 35% 35%;background:var(--flame);animation:fl 1.4s ease-in-out infinite alternate}
+@keyframes fl{to{transform:scale(.8,1.15)}}
+@media (prefers-reduced-motion:reduce){.c.on::before{animation:none}}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 22px}
+.lay label{display:flex;justify-content:space-between;font-size:15px}
+.lay small{color:var(--mute);display:block;font-size:13px;margin-top:-2px}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+.state{font:400 13px 'IBM Plex Mono',ui-monospace,monospace;color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+<h1>Last Light Over Earth: soundtrack</h1>
+<p class="sub">Generated live in your browser, so it never loops the same way twice. Press Start, then lower the candles as the game goes.</p>
+
+<section class="card">
+<h2>Transport</h2>
+<div class="row">
+<button class="go" id="start">Start</button>
+<label style="flex:1;min-width:180px;font-size:15px">Master volume<input type="range" id="vol" min="0" max="100" value="70"></label>
+</div>
+<div class="state" id="state">Stopped. Start before the players sit down, and begin quiet.</div>
+</section>
+
+<section class="card">
+<h2>Candles lit</h2>
+<div class="candles" id="candles" role="img" aria-label="Candles lit"></div>
+<label style="font-size:15px">Tension follows the candles: 10 is quiet unease, 1 is dread.<input type="range" id="cslide" min="1" max="10" value="10"></label>
+<div class="state" id="clabel" aria-live="polite">10 candles lit</div>
+</section>
+
+<section class="card">
+<h2>Moments</h2>
+<div class="btns">
+<button id="snuff">Snuff a candle</button>
+<button id="notify">Notification</button>
+<button id="whisper">Whisper</button>
+<button id="dead">Dead air (6 s)</button>
+</div>
+<div class="state" style="margin-top:8px">Snuff: boom, then silence, then the room comes back. Notification: static surge, three tones, hush.</div>
+</section>
+
+<section class="card">
+<h2>Layers</h2>
+<div class="grid lay" id="layers"></div>
+</section>
+</main>
+
+<script>
+(function(){
+var AC=window.AudioContext||window.webkitAudioContext,ctx,master,duck,conv,gate,droneF,ventF,osc2,wbuf,burstUntil=0,candles=10,started=false,G={};
+var lv={drone:70,vent:50,stat:45,creak:55,whisp:40,beep:35,heart:50,alarm:40};
+var names=[['drone','Hull drone','Deep hum that tightens as candles go out'],['vent','Life support','Air handling, thinning over time'],['stat','Radio static','Hiss with random bursts'],['creak','Hull creaks','Metal groans and pings'],['whisp','Whispers','Faint voices, heavy echo'],['beep','Unknown signal','Short tones on a dead channel'],['heart','Heartbeat','Enters around candle 7'],['alarm','Alarm','Only at 3 candles or fewer']];
+function rnd(a,b){return a+Math.random()*(b-a)}
+function lerp(a,b,t){return a+(b-a)*t}
+function T(){return (10-candles)/9}
+function $(id){return document.getElementById(id)}
+
+function nbuf(sec,pink){
+ var b=ctx.createBuffer(1,ctx.sampleRate*sec,ctx.sampleRate),d=b.getChannelData(0),i,w;
+ if(pink){var b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;for(i=0;i<d.length;i++){w=Math.random()*2-1;b0=.99886*b0+w*.0555179;b1=.99332*b1+w*.0750759;b2=.969*b2+w*.153852;b3=.8665*b3+w*.3104856;b4=.55*b4+w*.5329522;b5=-.7616*b5-w*.016898;d[i]=(b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11;b6=w*.115926}}
+ else{for(i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+ return b}
+function nsrc(pink){var s=ctx.createBufferSource();s.buffer=nbuf(4,pink);s.loop=true;s.start();return s}
+function impulse(sec){var l=ctx.sampleRate*sec,b=ctx.createBuffer(2,l,ctx.sampleRate),c,i,d;for(c=0;c<2;c++){d=b.getChannelData(c);for(i=0;i<l;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/l,2.6)}return b}
+function route(n,wet,pan){
+ var out=n;
+ if(pan!==undefined&&ctx.createStereoPanner){var p=ctx.createStereoPanner();p.pan.value=pan;n.connect(p);out=p}
+ out.connect(G.main);
+ if(wet){var s=ctx.createGain();s.gain.value=wet;out.connect(s);s.connect(conv)}
+}
+
+function setup(){
+ ctx=new AC();
+ var comp=ctx.createDynamicsCompressor();
+ master=ctx.createGain();master.gain.value=.7;duck=ctx.createGain();G.main=ctx.createGain();conv=ctx.createConvolver();conv.buffer=impulse(2.8);
+ G.main.connect(duck);conv.connect(duck);duck.connect(master);master.connect(comp);comp.connect(ctx.destination);
+ wbuf=nbuf(4,true);
+
+ G.drone=ctx.createGain();droneF=ctx.createBiquadFilter();droneF.type='lowpass';droneF.frequency.value=140;droneF.Q.value=4;
+ var o1=ctx.createOscillator(),o3=ctx.createOscillator();osc2=ctx.createOscillator();
+ o1.type='sawtooth';osc2.type='sawtooth';o3.type='sine';o1.frequency.value=48;osc2.frequency.value=48.5;o3.frequency.value=24;
+ [o1,osc2,o3].forEach(function(o){o.connect(droneF);o.start()});
+ droneF.connect(G.drone);G.drone.connect(G.main);
+ var lfo=ctx.createOscillator(),lg=ctx.createGain();lfo.frequency.value=.07;lg.gain.value=40;lfo.connect(lg);lg.connect(droneF.frequency);lfo.start();
+
+ G.vent=ctx.createGain();ventF=ctx.createBiquadFilter();ventF.type='bandpass';ventF.frequency.value=320;ventF.Q.value=.8;
+ nsrc(true).connect(ventF);ventF.connect(G.vent);G.vent.connect(G.main);
+ var l2=ctx.createOscillator(),g2=ctx.createGain();l2.frequency.value=.11;g2.gain.value=90;l2.connect(g2);g2.connect(ventF.frequency);l2.start();
+
+ G.stat=ctx.createGain();gate=ctx.createGain();gate.gain.value=.05;
+ var hp=ctx.createBiquadFilter();hp.type='highpass';hp.frequency.value=1800;
+ var bp=ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3500;bp.Q.value=.6;
+ nsrc(false).connect(hp);hp.connect(bp);bp.connect(gate);gate.connect(G.stat);G.stat.connect(G.main);
+
+ apply();
+ setInterval(staticTick,150);
+ loop(creak,function(t){return lerp(7000,2500,t)},function(t){return lerp(16000,6000,t)},'creak');
+ loop(whisper,function(t){return lerp(25000,9000,t)},function(t){return lerp(50000,20000,t)},'whisp');
+ loop(beeps,function(t){return lerp(18000,8000,t)},function(t){return lerp(40000,18000,t)},'beep');
+ heartLoop();alarmLoop();
+}
+
+function apply(){
+ if(!ctx)return;var t=T(),n=ctx.currentTime;
+ G.drone.gain.setTargetAtTime(lv.drone/100*(.3+.5*t),n,.4);
+ droneF.frequency.setTargetAtTime(110+260*t,n,.8);
+ osc2.frequency.setTargetAtTime(48.4+1.8*t,n,.8);
+ G.vent.gain.setTargetAtTime(lv.vent/100*(.35-.15*t),n,.4);
+ ventF.frequency.setTargetAtTime(320-120*t,n,.8);
+ G.stat.gain.setTargetAtTime(lv.stat/100,n,.2);
+}
+function staticTick(){
+ if(!ctx||ctx.state!=='running')return;
+ var t=T(),n=ctx.currentTime,base=.03+.1*t;
+ if(n<burstUntil)return;
+ if(Math.random()<.02+.25*t){var d=rnd(.05,.4);burstUntil=n+d;gate.gain.setTargetAtTime(rnd(.3,1),n,.01);gate.gain.setTargetAtTime(base,n+d,.03)}
+ else gate.gain.setTargetAtTime(base,n,.1);
+}
+function loop(fn,lo,hi,key){
+ (function go(){var t=T();setTimeout(function(){if(ctx&&ctx.state==='running'&&lv[key]>0)fn(lv[key]/100);go()},rnd(lo(t),hi(t)))})();
+}
+function creak(v){
+ var n=ctx.currentTime,g=ctx.createGain(),f=ctx.createBiquadFilter(),o=ctx.createOscillator(),f0=rnd(160,420);
+ o.type='triangle';o.frequency.setValueAtTime(f0,n);o.frequency.exponentialRampToValueAtTime(f0*rnd(.5,.85),n+rnd(.7,1.6));
+ f.type='bandpass';f.Q.value=14;f.frequency.value=rnd(500,1400);
+ g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(v*.35,n+.05);g.gain.exponentialRampToValueAtTime(.0001,n+1.8);
+ o.connect(f);f.connect(g);route(g,.6,rnd(-.8,.8));o.start(n);o.stop(n+2);
+ if(Math.random()<.4){var p=ctx.createOscillator(),pg=ctx.createGain();p.type='sine';p.frequency.value=rnd(600,1500);pg.gain.setValueAtTime(v*.12,n+.1);pg.gain.exponentialRampToValueAtTime(.0001,n+2.4);p.connect(pg);route(pg,.8,rnd(-.8,.8));p.start(n+.1);p.stop(n+2.5)}
+}
+function whisper(v){
+ var n=ctx.currentTime,s=ctx.createBufferSource();s.buffer=wbuf;
+ var f1=ctx.createBiquadFilter(),f2=ctx.createBiquadFilter(),g=ctx.createGain(),syl=Math.floor(rnd(4,9)),tt=n+.1,i,d;
+ f1.type='bandpass';f1.Q.value=7;f2.type='bandpass';f2.Q.value=9;f1.frequency.value=rnd(350,750);f2.frequency.value=rnd(1100,2300);g.gain.value=0;
+ s.connect(f1);s.connect(f2);f1.connect(g);f2.connect(g);
+ for(i=0;i<syl;i++){d=rnd(.07,.2);f1.frequency.setTargetAtTime(rnd(350,800),tt,.03);f2.frequency.setTargetAtTime(rnd(1100,2300),tt,.03);g.gain.setTargetAtTime(v*.5*rnd(1.5,3),tt,.02);g.gain.setTargetAtTime(0,tt+d,.03);tt+=d+rnd(.04,.16)}
+ route(g,1,rnd(-.9,.9));s.start(n);s.stop(tt+.5);
+}
+function beeps(v){
+ var n=ctx.currentTime,cnt=Math.floor(rnd(2,6)),f=Math.random()<.5?1000:1400,t0=n,i;
+ var bp=ctx.createBiquadFilter(),g=ctx.createGain(),o=ctx.createOscillator();
+ bp.type='bandpass';bp.frequency.value=f;bp.Q.value=2;g.gain.value=0;o.type='sine';o.frequency.value=f;
+ o.connect(bp);bp.connect(g);route(g,.25,rnd(-.6,.6));
+ for(i=0;i<cnt;i++){g.gain.setTargetAtTime(v*.12,t0,.005);g.gain.setTargetAtTime(0,t0+.07,.005);t0+=.17}
+ o.start(n);o.stop(t0+.2);
+}
+function thump(at,v,f){
+ var o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(f,at);o.frequency.exponentialRampToValueAtTime(f*.55,at+.14);
+ g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.01);g.gain.exponentialRampToValueAtTime(.0001,at+.2);
+ o.connect(g);route(g,.15);o.start(at);o.stop(at+.25);
+}
+function heartLoop(){
+ var t=T();
+ if(ctx&&ctx.state==='running'&&t>.3&&lv.heart>0){var v=lv.heart/100*(.18+.5*t),n=ctx.currentTime;thump(n,v,62);thump(n+.22,v*.7,52)}
+ setTimeout(heartLoop,60000/(55+55*t));
+}
+function alarmLoop(){
+ if(ctx&&ctx.state==='running'&&candles<=3&&lv.alarm>0){
+  var n=ctx.currentTime,v=lv.alarm/100*.08,lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=900;
+  [392,523].forEach(function(f,i){var o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(0,n+i*.32);g.gain.linearRampToValueAtTime(v,n+i*.32+.02);g.gain.linearRampToValueAtTime(0,n+i*.32+.3);o.connect(g);g.connect(lp);o.start(n+i*.32);o.stop(n+i*.32+.35)});
+  route(lp,.4);
+ }
+ setTimeout(alarmLoop,1800);
+}
+function tone(at,f,d,v){
+ var o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=f;
+ g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+.01);g.gain.setValueAtTime(v,at+d);g.gain.linearRampToValueAtTime(0,at+d+.02);
+ o.connect(g);route(g,.3);o.start(at);o.stop(at+d+.05);
+}
+
+function running(){return ctx&&ctx.state==='running'}
+function snuff(){
+ if(candles>1){candles--;sync()}
+ if(!running())return;
+ var n=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();
+ duck.gain.cancelScheduledValues(n);duck.gain.setTargetAtTime(.03,n,.04);
+ o.type='sine';o.frequency.setValueAtTime(70,n);o.frequency.exponentialRampToValueAtTime(28,n+1.4);
+ g.gain.setValueAtTime(.0001,n);g.gain.exponentialRampToValueAtTime(.8,n+.03);g.gain.exponentialRampToValueAtTime(.0001,n+1.8);
+ o.connect(g);g.connect(master);o.start(n);o.stop(n+2);
+ duck.gain.setTargetAtTime(1,n+2.6,.6);
+}
+function notify(){
+ if(!running())return;
+ var n=ctx.currentTime,i;
+ burstUntil=n+1.3;gate.gain.cancelScheduledValues(n);gate.gain.setTargetAtTime(1,n,.02);gate.gain.setTargetAtTime(.04,n+1.2,.05);
+ for(i=0;i<3;i++)tone(n+1.4+i*.35,1400,.2,.25);
+ duck.gain.cancelScheduledValues(n);duck.gain.setTargetAtTime(1,n,.01);duck.gain.setTargetAtTime(.04,n+2.5,.05);duck.gain.setTargetAtTime(1,n+6,1.2);
+}
+function dead(){
+ if(!running())return;
+ var n=ctx.currentTime;duck.gain.cancelScheduledValues(n);duck.gain.setTargetAtTime(0,n,.15);duck.gain.setTargetAtTime(1,n+6,1.5);
+}
+
+function drawCandles(){
+ var h='',i;for(i=0;i<10;i++)h+='<span class="c'+(i<candles?' on':'')+'"></span>';
+ $('candles').innerHTML=h;
+}
+function sync(){
+ $('cslide').value=candles;drawCandles();
+ $('clabel').textContent=candles+(candles===1?' candle lit':' candles lit');
+ apply();
+}
+
+var lh='';
+names.forEach(function(r){lh+='<div><label for="l-'+r[0]+'"><span>'+r[1]+'</span><span id="v-'+r[0]+'">'+lv[r[0]]+'</span></label><small>'+r[2]+'</small><input type="range" id="l-'+r[0]+'" min="0" max="100" value="'+lv[r[0]]+'"></div>'});
+$('layers').innerHTML=lh;
+names.forEach(function(r){$('l-'+r[0]).addEventListener('input',function(e){lv[r[0]]=+e.target.value;$('v-'+r[0]).textContent=lv[r[0]];apply()})});
+
+$('start').addEventListener('click',function(){
+ if(!AC){$('state').textContent='This browser does not support Web Audio.';return}
+ if(!started){started=true;setup();ctx.resume();$('start').textContent='Pause';$('state').textContent='Playing.';return}
+ if(ctx.state==='running'){ctx.suspend();$('start').textContent='Resume';$('state').textContent='Paused.'}
+ else{ctx.resume();$('start').textContent='Pause';$('state').textContent='Playing.'}
+});
+$('vol').addEventListener('input',function(e){if(master)master.gain.setTargetAtTime(e.target.value/100,ctx.currentTime,.05)});
+$('cslide').addEventListener('input',function(e){candles=+e.target.value;sync()});
+$('snuff').addEventListener('click',snuff);
+$('notify').addEventListener('click',notify);
+$('whisper').addEventListener('click',function(){if(running())whisper(Math.max(.5,lv.whisp/100))});
+$('dead').addEventListener('click',dead);
+drawCandles();
+})();
+</script>
+</body>
+</html>
